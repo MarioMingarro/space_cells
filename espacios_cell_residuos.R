@@ -116,14 +116,14 @@ ggplot() +
       "Cells_Scaled" = "gray20"
     ),
     labels = c(
-      "Climate_Scaled" = "Climate availability",
+      "Climate_Scaled" = "10x10 climate availability",
       "Cells_Scaled" = "Geographic availability",
-      "N2000_Scaled" = "Representativeness"
+      "N2000_Scaled" = "100x100 climate availability"
     ),
     name = "Metrics"
   ) +
   labs(
-    title = "N2000",
+    title = " ",
     x = "Elevation (m)",
     y = "Scaled value (%)"
   ) +
