@@ -16,7 +16,7 @@ r_iccr <- r_n2000_n / r_er_n
 names(r_iccr) <- "ICCR"
 
 # 3. Transformación logarítmica (log10)
-# ICCR = 0 -> NA (no representable en escala log)
+r_iccr = 0 -> NA
 r_log_iccr <- log10(r_iccr)
 names(r_log_iccr) <- "logICCR"
 
