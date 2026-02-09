@@ -1,13 +1,14 @@
 library(terra)
 library(dplyr)
 
-r_n2000 <- rast("C:/A_TRABAJO/CELLS_CLIMAREP/NATIONAL_PARKS/ECNP.tif")
-r_er    <- rast("C:/A_TRABAJO/CELLS_CLIMAREP/NATIONAL_PARKS/ECR.tif")
+r_n2000 <- rast("C:/A_TRABAJO/CELLS_CLIMAREP/NATIONAL_PARKS/ECNP.tif") # numero de APs que tienen el clima del pixel. Redundancia climatica
+r_er    <- rast("C:/A_TRABAJO/CELLS_CLIMAREP/NATIONAL_PARKS/ECR.tif") # Numero de celdas 10x10 que tienen el clima del pixel. Redundancia climatica
 
 study_area <- vect("C:/A_TRABAJO/CELLS_CLIMAREP/Iberia_10km_AE.shp")
 
 sums <- global(c(r_n2000, r_er), "sum", na.rm = TRUE)
 r_er[r_er == 0] <- 1
+r_rareza <- 1/r_er # Rareza climatica
 
 r_n2000_n <- (r_n2000 / sums$sum[1]) 
 r_n2000_n[r_n2000_n == 0] <- NA
@@ -17,6 +18,8 @@ r_er_n <- (r_er / sums$sum[2])
 r_iccr <- r_n2000_n / r_er_n
 names(r_iccr) <- "ICCR"
 plot(r_iccr)
+
+r_iccr <- r_iccr * r_rareza los climas raros pesan mas en esa proporcion
 
 r_log_iccr <- log10(r_iccr)
 names(r_log_iccr) <- "logICCR"
@@ -29,8 +32,8 @@ writeRaster(
 )
 
 writeRaster(
-  r_er_n,
-  "C:/A_TRABAJO/CELLS_CLIMAREP/NATIONAL_PARKS/r_er_n.tif",
+  r_er,
+  "C:/A_TRABAJO/CELLS_CLIMAREP/NATIONAL_PARKS/r_rareza.tif",
   overwrite = TRUE
 )
 
