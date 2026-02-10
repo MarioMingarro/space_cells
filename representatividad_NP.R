@@ -6,20 +6,28 @@ r_er    <- rast("C:/A_TRABAJO/CELLS_CLIMAREP/NATIONAL_PARKS/ECR.tif") # Numero d
 
 study_area <- vect("C:/A_TRABAJO/CELLS_CLIMAREP/Iberia_10km_AE.shp")
 
-sums <- global(c(r_n2000, r_er), "sum", na.rm = TRUE)
-r_er[r_er == 0] <- 1
-r_rareza <- 1/r_er # Rareza climatica
 
-r_n2000_n <- (r_n2000 / sums$sum[1]) 
+r_er[r_er == 0] <- 1
+
+
+r_er_n    <- r_er / sum(values(r_er), na.rm=T)
+r_n2000_n <- r_n2000 / sum(values(r_n2000), na.rm=T)
 r_n2000_n[r_n2000_n == 0] <- NA
 
-r_er_n <- (r_er / sums$sum[2])
+r_rareza <- 1/r_er # Rareza climatica
+r_rareza_n <- r_rareza / sum(values(r_rareza), na.rm=T)
 
-r_iccr <- r_n2000_n / r_er_n
+r_iccr <- (r_n2000_n / r_er_n) 
 names(r_iccr) <- "ICCR"
 plot(r_iccr)
 
-r_iccr <- r_iccr * r_rareza los climas raros pesan mas en esa proporcion
+r_iccr_inv <- (r_n2000_n / r_er_n) 
+names(r_iccr) <- "ICCR"
+plot(r_iccr)
+
+
+
+r_iccr_nuevo <- (r_n2000 / r_er) * (1 / r_er)
 
 r_log_iccr <- log10(r_iccr)
 names(r_log_iccr) <- "logICCR"
@@ -39,13 +47,13 @@ writeRaster(
 
 writeRaster(
   r_iccr,
-  "C:/A_TRABAJO/CELLS_CLIMAREP/NATIONAL_PARKS/r_iccr.tif",
+  "C:/A_TRABAJO/CELLS_CLIMAREP/NATIONAL_PARKS/r_iccr_rareza.tif",
   overwrite = TRUE
 )
 
 writeRaster(
   r_log_iccr,
-  "C:/A_TRABAJO/CELLS_CLIMAREP/NATIONAL_PARKS/logICCR.tif",
+  "C:/A_TRABAJO/CELLS_CLIMAREP/NATIONAL_PARKS/logICCR_rareza.tif",
   overwrite = TRUE
 )
 
