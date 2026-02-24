@@ -76,7 +76,7 @@ stopCluster(cl)
 metricas_red_emisor <- red_clima %>%
   group_by(ID_EMISOR) %>%
   summarise(
-    Masa_Salida_Total = sum(Pixeles, na.rm = TRUE),
+    Masa_Salida_Externa = sum(Pixeles[ID_RECEPTOR != ID_EMISOR & !is.na(ID_RECEPTOR)], na.rm = TRUE),
     # ¿A cuántos OTROS parques toca?
     Conectividad_Salida = n_distinct(ID_RECEPTOR[ID_RECEPTOR != ID_EMISOR & !is.na(ID_RECEPTOR)])
   )
@@ -106,51 +106,67 @@ r_er_n <- r_er / 238
 #####################################################################################################################################
 #####################################################################################################################################
 
-names(r_ap) <- "freq"
-names(r_ap_n) <- "val_np"
-names(r_er_n) <- "val_er"
 
-# Extraemos todo. Usamos exact=TRUE si quieres exactitud fraccional en bordes (opcional pero lento)
-ext_ap   <- terra::extract(r_ap, aps_vect, ID = TRUE)
-ext_ap_n <- terra::extract(r_ap_n, aps_vect, ID = TRUE)
-ext_er_n <- terra::extract(r_er_n, aps_vect, ID = TRUE)
 
-# Unimos las 3 extracciones en un solo dataframe ANTES de calcular las métricas
-df_extracciones_unidas <- ext_ap %>%
-  left_join(ext_ap_n, by = "ID") %>%
-  left_join(ext_er_n, by = "ID")
+r_stack <- c(r_ap, r_ap_n, r_er_n)
 
-# Cálculo de métricas limpio y vectorizado
+# Opcional pero recomendado: poner nombres claros a las capas ANTES de extraer
+names(r_stack) <- c("val_ap_original", "val_ap_norm", "val_er_norm")
+
+# 2. Haz UNA sola extracción
+# El resultado será un único dataframe con las columnas: ID, val_ap_original, val_ap_norm, val_er_norm
+df_extracciones_unidas <- terra::extract(r_stack, aps_vect, ID = TRUE)
+
+
+# Cálculo de métricas corregido
 receptor_expresion <- df_extracciones_unidas %>%
   group_by(ID) %>%
   summarise(
-    Cobertura_Respaldo = sum(freq >= 1, na.rm = TRUE) / n() * 100,
-    p10_np = quantile(val_np, 0.10, na.rm = TRUE),
-    p90_np = quantile(val_np, 0.90, na.rm = TRUE),
-    med_np = median(val_np, na.rm = TRUE),
-    med_er = median(val_er, na.rm = TRUE)
+    Cobertura_Respaldo = sum(val_ap_original >= 1, na.rm = TRUE) / n() * 100,
+    p10_np = quantile(val_ap_norm, 0.10, na.rm = TRUE),
+    p90_np = quantile(val_ap_norm, 0.90, na.rm = TRUE),
+    med_np = median(val_ap_norm, na.rm = TRUE),
+    med_er = median(val_er_norm, na.rm = TRUE)
   ) %>%
   mutate(
-    RCRI = log10(med_np / med_er),
+    RCRI = log10(med_np / (med_er)), 
     ISC  = p10_np * p90_np
   )
 
 # ==============================================================================
 # PARTE D: UNIFICACIÓN
 # ==============================================================================
-map_ids <- data.frame(ID = 1:nrow(aps_vect), ID_JOIN = as.vector(aps_vect[[nombre_columna_id]]))
 
+# 1. Crear el mapa de IDs de forma ultra-segura
+# Nos aseguramos de extraer los valores como un vector simple
+ids_reales <- as.numeric(values(aps_vect[[nombre_columna_id]])[,1])
+
+map_ids <- data.frame(
+  ID = 1:nrow(aps_vect), 
+  ID_JOIN = ids_reales
+)
+
+# 2. Unificación con comprobación de pasos
 final_df <- receptor_expresion %>%
-  left_join(map_ids, by = "ID") %>%
-  # Unimos lo que da (emisor)
+  # Paso A: Pegamos el WDPAID (ID_JOIN) usando el ID secuencial de extract
+  left_join(map_ids, by = "ID")
+
+# EXAMEN CRÍTICO: ¿Se pegó bien? 
+# Si el error persiste aquí, es que 'receptor_expresion' perdió la columna 'ID'
+# (aunque el group_by(ID) debería haberla mantenido).
+
+final_df <- final_df %>%
+  # Paso B: Unimos métricas de salida
   left_join(metricas_red_emisor, by = c("ID_JOIN" = "ID_EMISOR")) %>%
-  # Unimos lo que recibe (receptor)
+  # Paso C: Unimos métricas de entrada
   left_join(metricas_red_receptor, by = c("ID_JOIN" = "ID_RECEPTOR")) %>%
-  # Rellenamos NAs en conectividad con 0 (si un parque no da ni recibe nada)
+  # Paso D: Limpieza de NAs
   mutate(
     Conectividad_Salida = tidyr::replace_na(Conectividad_Salida, 0),
-    Conectividad_Entrada = tidyr::replace_na(Conectividad_Entrada, 0)
+    Conectividad_Entrada = tidyr::replace_na(Conectividad_Entrada, 0),
+    Masa_Salida_Total = tidyr::replace_na(Masa_Salida_Total, 0)
   )
 
-aps_final <- merge(aps_vect, final_df, by.x = nombre_columna_id, by.y = "ID_JOIN")
+
+aps_final <- merge(aps_vect, final_df, by.x = nombre_columna_id, by.y = "WDPAID")
 writeVector(aps_final, "Resultados_Clima_Completos.shp", overwrite=TRUE)
